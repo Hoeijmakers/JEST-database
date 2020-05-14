@@ -1,3 +1,16 @@
+#This is a script that takes the Astropy table of transiting exoplanets output by the accompanied
+#Jupyter notebook, and takes the columns for Jmag, Teff, Tstar, Rp and transit duration to prime
+#Pandexo simulations for a selected JWST mode (see below).
+
+#First below is a script that runs Pandexo for a single planet. This script is looped over in the script below, for all
+#planets in the table, provided that they have the correct information.
+
+#Running the entire transiting database for 2 modes of JWST takes about 8 hours on my mac. Adding simulation columns
+#for other modes requires modifying the calls to "simulate_pandexo()" at the very bottom of this script.
+
+# -Jens Hoeijmakers, May 2020.
+
+
 def run_pandexo_on_planet(Jmag,Teff,Rstar,Rp,dur,logg=4.5,FeH=0.0,JWST_mode='NIRSpec G395M'):
     """This runs pandexo for a transit of a single planet in a given JWST mode.
 
@@ -102,14 +115,18 @@ def run_pandexo_on_planet(Jmag,Teff,Rstar,Rp,dur,logg=4.5,FeH=0.0,JWST_mode='NIR
     return(np.nanmean(err[0]),out['timing']['Transit+Baseline, no overhead (hrs)'])
 
 
-def simulate_pandexo():
-    """This takes a predefined table of exoplanets and runs pandexo on each of them, adding the output to the columns.
-    Planets for which a mandatory input is missing are ignored."""
+def simulate_pandexo(JWST_mode,tablename='table.p'):
+    """This takes a predefined table of exoplanets and runs pandexo on each of them, adding the Pandexo output to the columns.
+    Planets for which a mandatory input is missing are ignored.
+
+    Set the desired JWST_mode below. The default subarray will be selected accordingly.
+
+    Planets for which values are missing get a -1."""
     import pickle
     import numpy as np
-    transiting = pickle.load(open( "table.p", "rb" ))
+    transiting = pickle.load(open(tablename, "rb" ))
 
-    JWST_mode = 'NIRSpec G395M'
+    # JWST_mode = 'NIRSpec G140H'
     #Available modes:
     # NIRSpec Prism - NIRSpec G395M - NIRSpec G395H - NIRSpec G235H - NIRSpec G235M - NIRCam F322W - NIRSpec G140M - NIRSpec G140H - MIRI LRS - NIRISS SOSS
 
@@ -125,25 +142,28 @@ def simulate_pandexo():
         FeH = row['st_metfe']
 
         trigger = 1
-        errstr = ''
-        if not isinstance(Jmag,np.float64): errstr+='no Jmag'
-        if not isinstance(Teff,np.float64): errstr+=', no Teff'
-        if Teff < 2000: errstr+=', Teff out of bounds'
-        if not isinstance(Rstar,np.float64):  errstr+=', no Rstar'
-        if not isinstance(Rp,np.float64):  errstr+=', no Rp'
-        if not isinstance(dur,np.float64):  errstr+=', no duration'
-        if not isinstance(logg,np.float64):  logg=4.5
-        if not isinstance(FeH,np.float64):  logg=0.0
-        if len(errstr) >= 1:
+        errstr = ''#Message saying why a certain planet is skipped (i.e. for the reason of which value being missing).
+        if not isinstance(Jmag,np.float64): errstr+='no Jmag'#If Jmag is not filled in, start building up the error string.
+        if not isinstance(Teff,np.float64): errstr+=', no Teff'#If Teff is not filled in.
+        if Teff < 2000: errstr+=', Teff out of bounds'#or if it is out of bounds...
+        if not isinstance(Rstar,np.float64):  errstr+=', no Rstar'#If Rstar is not filled in.
+        if not isinstance(Rp,np.float64):  errstr+=', no Rp'#If Rp is not filled in.
+        if not isinstance(dur,np.float64):  errstr+=', no duration'#If the transit duration is not filled in.....
+        if not isinstance(logg,np.float64):  logg=4.5#Put log(g) to a standard value if not provided.
+        if not isinstance(FeH,np.float64):  logg=0.0#as well as Fe/H.
+        if len(errstr) >= 1:#.....then the error string has a length greater than 0, and we move on to the next planet.
             print('Skipping '+row['pl_name']+' ('+errstr+').')
             print(Jmag,Teff,Rstar,Rp,dur,logg,FeH)
-        else:
-            err,time = run_pandexo_on_planet(Jmag,Teff,Rstar,Rp,dur,logg=4.5,FeH=0.0,JWST_mode=JWST_mode,subarray='sub2048')
+        else:#meaning, if all values were accounted for, we run Pandexo and collect the output.
+            err,time = run_pandexo_on_planet(Jmag,Teff,Rstar,Rp,dur,logg=4.5,FeH=0.0,JWST_mode=JWST_mode)
             row[JWST_mode+'_error']=err
             row[JWST_mode+'_time']=time
             print(err)
         print('%s / %s'%(i,len(transiting)))
-simulate_pandexo()
-pickle.dump(transiting,open("table_with_pandexo.p", "wb" ))
-# err,time = run_pandexo_on_planet(Jmag,Teff,Rstar,Rp,dur,logg=4.5,FeH=0.0,JWST_mode='NIRSpec G395M',subarray='sub2048')
-# err,time = run_pandexo_on_planet(10.0,5000.0,1.0,1.0,2.0,logg=4.5,FeH=0.0,JWST_mode='NIRSpec G395M',subarray='sub2048')
+    pickle.dump(transiting,open(tablename, "wb" ))
+simulate_pandexo('NIRSpec G140M')
+simulate_pandexo('NIRSpec G395M')
+#simulate_pandexo('NIRSpec G295M')
+#simulate_pandexo('NIRISS SOSS')
+#simulate_pandexo('MIRI LRS')
+#simulate_pandexo('NIRSpec Prism')
