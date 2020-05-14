@@ -1,3 +1,4 @@
-*.p
+table.p
+temp.p
 .ipynb_*
 .DS_Store
