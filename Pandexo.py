@@ -36,8 +36,8 @@ def run_pandexo_on_planet(Jmag,Teff,Rstar,Rp,dur,logg=4.5,FeH=0.0,JWST_mode='NIR
 
     #Check the input:
     NS_L = ['NIRSpec Prism']
-    NS_M = ['NIRSpec G140M','NIRSpec G295M','NIRSpec G395M']
-    NS_H = ['NIRSpec G140H','NIRSpec G295H','NIRSpec G395H']
+    NS_M = ['NIRSpec G140M','NIRSpec G235M','NIRSpec G395M']
+    NS_H = ['NIRSpec G140H','NIRSpec G235H','NIRSpec G395H']
     NRSS = ['NIRISS SOSS']
     MI = ['MIRI LRS']
     NC = ['NIRCam F322W2', 'NIRCam F444W']#https://jwst-docs.stsci.edu/near-infrared-camera/nircam-observing-modes/nircam-time-series-observations/nircam-grism-time-series (very bright stars possible, ~5th magnitude)
@@ -110,7 +110,7 @@ def run_pandexo_on_planet(Jmag,Teff,Rstar,Rp,dur,logg=4.5,FeH=0.0,JWST_mode='NIR
     return(np.nanmean(err[0]),out['timing']['Transit+Baseline, no overhead (hrs)'])
 
 
-def simulate_pandexo(JWST_mode,tablename='table.p',table_outname='table_pandexo.p'):
+def simulate_pandexo(JWST_mode,tablename='table_pandexo.p',table_outname='table_pandexo.p'):
     """This takes a predefined table of exoplanets and runs pandexo on each of them, adding the Pandexo output to the columns.
     Planets for which a mandatory input is missing are ignored.
 
@@ -160,12 +160,13 @@ def simulate_pandexo(JWST_mode,tablename='table.p',table_outname='table_pandexo.
 
 
 #Calling all of the above:
-simulate_pandexo('NIRSpec G140M')
-simulate_pandexo('NIRSpec G395M')
-#simulate_pandexo('NIRSpec G295M')
-#simulate_pandexo('NIRISS SOSS')
-#simulate_pandexo('MIRI LRS')
-#simulate_pandexo('NIRSpec Prism')
+# simulate_pandexo('NIRSpec G140M')
+# simulate_pandexo('NIRSpec G395M')
+# simulate_pandexo('NIRSpec Prism')
+simulate_pandexo('NIRSpec G235M')
+simulate_pandexo('NIRISS SOSS')
+simulate_pandexo('MIRI LRS')
+
 
 #Available modes:
 # NIRSpec Prism - NIRSpec G395M - NIRSpec G395H - NIRSpec G235H - NIRSpec G235M - NIRCam F322W - NIRSpec G140M - NIRSpec G140H - MIRI LRS - NIRISS SOSS
