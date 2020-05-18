@@ -31,6 +31,7 @@ def run_pandexo_on_planet(Jmag,Teff,Rstar,Rp,dur,logg=4.5,FeH=0.0,JWST_mode='NIR
     import pickle as pk
     import numpy as np
     import os
+    import pdb
     import matplotlib.pyplot as plt
 
 
@@ -41,7 +42,7 @@ def run_pandexo_on_planet(Jmag,Teff,Rstar,Rp,dur,logg=4.5,FeH=0.0,JWST_mode='NIR
     NRSS = ['NIRISS SOSS']
     MI = ['MIRI LRS']
     NC = ['NIRCam F322W2', 'NIRCam F444W']#https://jwst-docs.stsci.edu/near-infrared-camera/nircam-observing-modes/nircam-time-series-observations/nircam-grism-time-series (very bright stars possible, ~5th magnitude)
-    allowed_modes = NS_L+NS_M+NS_H+NRSS+MI
+    allowed_modes = NS_L+NS_M+NS_H+NRSS+MI+NC
     if JWST_mode not in allowed_modes:
         str = ''
         for m in allowed_modes:
@@ -69,6 +70,9 @@ def run_pandexo_on_planet(Jmag,Teff,Rstar,Rp,dur,logg=4.5,FeH=0.0,JWST_mode='NIR
         subarray = 'substrip96'#NIRISS SOSS for bright stars.
     if JWST_mode in MI:
         subarray = 'slitlessprism'
+    if JWST_mode in NC:
+        subarray = 'subgrism128'
+
 
     print('Running %s for %s and subarray %s.'%(planetname,JWST_mode,subarray))
     #################### OBSERVATION INFORMATION
@@ -101,12 +105,26 @@ def run_pandexo_on_planet(Jmag,Teff,Rstar,Rp,dur,logg=4.5,FeH=0.0,JWST_mode='NIR
     exo_dict['planet']['f_unit'] = 'rp^2/r*^2'
 
     #################### BEGIN RUN
-    inst_dict = jdi.load_mode_dict(JWST_mode)
-    inst_dict["configuration"]["detector"]["subarray"]='sub2048'
-    jdi.run_pandexo(exo_dict,inst_dict, save_file=True, output_file='temp.p')
-    out = pk.load(open('temp.p','rb'))
 
-    wl,spec,err= jpi.jwst_1d_spec(out,plot=False)
+
+    try:
+        inst_dict = jdi.load_mode_dict(JWST_mode)
+        inst_dict["configuration"]["detector"]["subarray"]=subarray
+    except:
+        print('Unknown error in selecting mode from instrument dictionary. Entering debug mode.')
+        pdb.set_trace()
+    try:
+        jdi.run_pandexo(exo_dict,inst_dict, save_file=True, output_file='temp.p')
+    except:
+        print('Unknown error in running pandexo. Are the exoplanet system parameters physical? Entering debug mode.')
+        pdb.set_trace()
+
+    try:
+        out = pk.load(open('temp.p','rb'))
+        wl,spec,err= jpi.jwst_1d_spec(out,plot=False)
+    except:
+        print('Unknown error in collecting Pandexo output. Entering debug mode.')
+        pdb.set_trace()
     return(np.nanmean(err[0]),out['timing']['Transit+Baseline, no overhead (hrs)'])
 
 
@@ -123,35 +141,52 @@ def simulate_pandexo(JWST_mode,tablename='table_pandexo.p',table_outname='table_
     with open(tablename, "rb" ) as f:
         transiting = pickle.load(f)
 
+    #Prepare output columns to be added to the table:
     transiting[JWST_mode+'_error']=-1.0
     transiting[JWST_mode+'_time']=-1.0
+    transiting['dur_approx_flag']=0.0
+
+    #We are going to loop through each entry in the table and run Pandexo on it if the planet has sufficient data provided.
     for i,row in enumerate(transiting):
         Jmag = row['st_j']
         Teff = row['st_teff'].to('K').value
         Rstar = row['st_rad'].to('solRad').value
         Rp = row['pl_radj'].to('jupiterRad').value
         dur = row['pl_trandur']*24.0
+        dur_approx = row['duration_predicted'].to('h').value
         logg = row['st_logg']
         FeH = row['st_metfe']
+        err = np.nan
+        time = np.nan#Set to NaN at the start.
 
-        trigger = 1
+        #Now we check the integrity of the needed variables in this row:
         errstr = ''#Message saying why a certain planet is skipped (i.e. for the reason of which value being missing).
         if not isinstance(Jmag,np.float64): errstr+='no Jmag'#If Jmag is not filled in, start building up the error string.
         if not isinstance(Teff,np.float64): errstr+=', no Teff'#If Teff is not filled in.
         if Teff < 2000: errstr+=', Teff out of bounds'#or if it is out of bounds...
         if not isinstance(Rstar,np.float64):  errstr+=', no Rstar'#If Rstar is not filled in.
+        if Rstar <= 0.0: errstr+=', Rstar is zero??'
         if not isinstance(Rp,np.float64):  errstr+=', no Rp'#If Rp is not filled in.
-        if not isinstance(dur,np.float64):  errstr+=', no duration'#If the transit duration is not filled in.....
+        if not isinstance(dur,np.float64):
+            if np.isfinite(dur_approx):
+                row['dur_approx_flag']=1.0
+                print('      Using duration approximation to proceed')
+            else:
+                errstr+=', no duration'#If the transit duration is not filled in.....
         if not isinstance(logg,np.float64):  logg=4.5#Put log(g) to a standard value if not provided.
         if not isinstance(FeH,np.float64):  logg=0.0#as well as Fe/H.
-        if len(errstr) >= 1:#.....then the error string has a length greater than 0, and we move on to the next planet.
-            print('Skipping '+row['pl_name']+' ('+errstr+').')
-            print(Jmag,Teff,Rstar,Rp,dur,logg,FeH)
-        else:#meaning, if all values were accounted for, we run Pandexo and collect the output.
-            err,time = run_pandexo_on_planet(Jmag,Teff,Rstar,Rp,dur,logg=4.5,FeH=0.0,JWST_mode=JWST_mode,planetname=row['pl_name'])
+
+        #Test if any errors were triggered:
+        if len(errstr) >= 1:#.....then the error string has a length greater than 0, and we skip to the next planet.
+            print('      Skipping '+row['pl_name']+' ('+errstr+').')
+            print('      Jmag: %s, Teff: %s, Rstar: %s, Rp: %s, duration: %s, duration_approx: %s, log(g): %s, FeH: %s'%(Jmag,Teff,Rstar,Rp,dur,dur_approx,logg,FeH))
+        else:#else, meaning if all values were accounted for, we try to run Pandexo and collect the output.
+            if row['dur_approx_flag']==1.0:
+                err,time = run_pandexo_on_planet(Jmag,Teff,Rstar,Rp,dur_approx,logg=4.5,FeH=0.0,JWST_mode=JWST_mode,planetname=row['pl_name'])
+            else:
+                err,time = run_pandexo_on_planet(Jmag,Teff,Rstar,Rp,dur,logg=4.5,FeH=0.0,JWST_mode=JWST_mode,planetname=row['pl_name'])
             row[JWST_mode+'_error']=err
             row[JWST_mode+'_time']=time
-            print(err)
         print('%s / %s'%(i,len(transiting)))
     with open(table_outname,"wb") as f:
         pickle.dump(transiting,f)
@@ -160,13 +195,16 @@ def simulate_pandexo(JWST_mode,tablename='table_pandexo.p',table_outname='table_
 
 
 #Calling all of the above:
-# simulate_pandexo('NIRSpec G140M')
-# simulate_pandexo('NIRSpec G395M')
-# simulate_pandexo('NIRSpec Prism')
+# simulate_pandexo('NIRSpec G140M',tablename='table.p')
 simulate_pandexo('NIRSpec G235M')
+simulate_pandexo('NIRSpec G395M')
+simulate_pandexo('NIRSpec Prism')
 simulate_pandexo('NIRISS SOSS')
+simulate_pandexo('NIRCam F322W2')
+simulate_pandexo('NIRCam F444W')
 simulate_pandexo('MIRI LRS')
 
 
+
 #Available modes:
-# NIRSpec Prism - NIRSpec G395M - NIRSpec G395H - NIRSpec G235H - NIRSpec G235M - NIRCam F322W - NIRSpec G140M - NIRSpec G140H - MIRI LRS - NIRISS SOSS
+# NIRSpec Prism - NIRSpec G395M - NIRSpec G395H - NIRSpec G235H - NIRSpec G235M - NIRCam F322W2 - NIRCam F444W - NIRSpec G140M - NIRSpec G140H - MIRI LRS - NIRISS SOSS
