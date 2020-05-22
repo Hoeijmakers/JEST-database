@@ -134,7 +134,9 @@ def simulate_pandexo(JWST_mode,tablename='table_pandexo.p',table_outname='table_
 
     Set the desired JWST_mode below. The default subarray will be selected accordingly.
 
-    Planets for which values are missing get a -1."""
+    Planets for which values are missing get a -1.
+
+    Set the TESS keyword if you supply TESS magnitudes instead of Jmags."""
     import pickle
     import numpy as np
 
@@ -191,20 +193,94 @@ def simulate_pandexo(JWST_mode,tablename='table_pandexo.p',table_outname='table_
     with open(table_outname,"wb") as f:
         pickle.dump(transiting,f)
 
+def simulate_pandexo_TOI(JWST_mode,tablename='table_pandexo.p',table_outname='table_pandexo.p'):
+    """This takes a predefined table of exoplanets and runs pandexo on each of them, adding the Pandexo output to the columns.
+    Planets for which a mandatory input is missing are ignored.
 
+    Set the desired JWST_mode below. The default subarray will be selected accordingly.
+
+    Planets for which values are missing get a -1.."""
+    import pickle
+    import numpy as np
+    import astropy.units as u
+    import pdb
+    import urllib
+    with open(tablename, "rb" ) as f:
+        transiting = pickle.load(f)
+
+    #Prepare output columns to be added to the table:
+    transiting[JWST_mode+'_error']=-1.0
+    transiting[JWST_mode+'_time']=-1.0
+
+    url_stem = 'https://exofop.ipac.caltech.edu/tess/target.php?id='
+
+    #We are going to loop through each entry in the table and run Pandexo on it if the planet has sufficient data provided.
+    for i,row in enumerate(transiting):
+        # Jmag = row['MT']
+        #We need to scrape the Jmag from the exofop website:
+
+        Jmag = row['Jmag']
+        if Jmag < 0.0:
+            print('Need to scrape the Jmag:')
+            url = url_stem+str(row['TIC ID'])
+            new_html = ((urllib.request.urlopen(url)).read()).decode('utf-8')
+            Jmag = np.float64(new_html.split('Band')[1].split('J</td>\n<td>')[1].split(' <div class')[0])
+            row['Jmag']=Jmag#Update the table. Will be written later so the scraping only happens once.
+            print('Jmag = %s'%Jmag)
+        Teff = row['Teff']
+        Rstar = row['Rstar']
+        Rp = (row['r_earth']*u.earthRad).to('jupiterRad').value
+        dur = row['duration']
+
+        logg = 4.5
+        FeH = 0.0
+        err = np.nan
+        time = np.nan#Set to NaN at the start.
+
+        #Now we check the integrity of the needed variables in this row:
+        errstr = ''#Message saying why a certain planet is skipped (i.e. for the reason of which value being missing).
+        if not isinstance(Jmag,np.float64):
+            errstr+='no mag'#If Jmag is not filled in, start building up the error string.
+            print(type(Jmag))
+        else:
+            if Jmag < 1.0 or Jmag > 26:
+                errstr+=', Jmag out of bounds?'
+        if not isinstance(Teff,np.float64): errstr+=', no Teff'#If Teff is not filled in.
+        if Teff < 2000: errstr+=', Teff out of bounds'#or if it is out of bounds...
+        if not isinstance(Rstar,np.float64):  errstr+=', no Rstar'#If Rstar is not filled in.
+        if Rstar <= 0.0: errstr+=', Rstar is zero??'
+        if not isinstance(Rp,np.float64):  errstr+=', no Rp'#If Rp is not filled in.
+        if not isinstance(dur,np.float64): errstr+=', no duration'#If the transit duration is not filled in.....
+
+        #Test if any errors were triggered:
+        if len(errstr) >= 1:#.....then the error string has a length greater than 0, and we skip to the next planet.
+            print('      Skipping '+row['pl_name']+' ('+errstr+').')
+            print('      Jmag: %s, Teff: %s, Rstar: %s, Rp: %s, duration: %s:'%(Jmag,Teff,Rstar,Rp,dur))
+        else:#else, meaning if all values were accounted for, we try to run Pandexo and collect the output.
+            err,time = run_pandexo_on_planet(Jmag,Teff,Rstar,Rp,dur,logg=4.5,FeH=0.0,JWST_mode=JWST_mode,planetname=row['pl_name'])
+            row[JWST_mode+'_error']=err
+            row[JWST_mode+'_time']=time
+        print('%s / %s'%(i,len(transiting)))
+    with open(table_outname,"wb") as f:
+        pickle.dump(transiting,f)
 
 
 #Calling all of the above:
 # simulate_pandexo('NIRSpec G140M',tablename='table.p')
-simulate_pandexo('NIRSpec G235M')
-simulate_pandexo('NIRSpec G395M')
-simulate_pandexo('NIRSpec Prism')
-simulate_pandexo('NIRISS SOSS')
-simulate_pandexo('NIRCam F322W2')
-simulate_pandexo('NIRCam F444W')
-simulate_pandexo('MIRI LRS')
+# simulate_pandexo('NIRSpec G235M')
+# simulate_pandexo('NIRSpec G395M')
+# simulate_pandexo('NIRSpec Prism')
+# simulate_pandexo('NIRISS SOSS')
+# simulate_pandexo('NIRCam F322W2')
+# simulate_pandexo('NIRCam F444W')
+# simulate_pandexo('MIRI LRS')
 
-
-
-#Available modes:
-# NIRSpec Prism - NIRSpec G395M - NIRSpec G395H - NIRSpec G235H - NIRSpec G235M - NIRCam F322W2 - NIRCam F444W - NIRSpec G140M - NIRSpec G140H - MIRI LRS - NIRISS SOSS
+#And calling it again for the TOIs.
+simulate_pandexo_TOI('NIRSpec G140M',tablename='TOI_table.p',table_outname='TOI_table_pandexo.p')
+# simulate_pandexo_TOI('NIRSpec G235M',tablename='TOI_table_pandexo.p',table_outname='TOI_table_pandexo.p')
+# simulate_pandexo_TOI('NIRSpec G395M',tablename='TOI_table_pandexo.p',table_outname='TOI_table_pandexo.p')
+# simulate_pandexo_TOI('NIRSpec Prism',tablename='TOI_table_pandexo.p',table_outname='TOI_table_pandexo.p')
+# simulate_pandexo_TOI('NIRISS SOSS',tablename='TOI_table_pandexo.p',table_outname='TOI_table_pandexo.p')
+# simulate_pandexo_TOI('NIRCam F322W2',tablename='TOI_table_pandexo.p',table_outname='TOI_table_pandexo.p')
+# simulate_pandexo_TOI('NIRCam F444W',tablename='TOI_table_pandexo.p',table_outname='TOI_table_pandexo.p')
+# simulate_pandexo_TOI('MIRI LRS',tablename='TOI_table_pandexo.p',table_outname='TOI_table_pandexo.p')
