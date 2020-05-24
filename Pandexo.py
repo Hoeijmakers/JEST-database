@@ -223,9 +223,12 @@ def simulate_pandexo_TOI(JWST_mode,tablename='table_pandexo.p',table_outname='ta
         if Jmag < 0.0:
             print('Need to scrape the Jmag:')
             url = url_stem+str(row['TIC ID'])
-            new_html = ((urllib.request.urlopen(url)).read()).decode('utf-8')
-            Jmag = np.float64(new_html.split('Band')[1].split('J</td>\n<td>')[1].split(' <div class')[0])
-            row['Jmag']=Jmag#Update the table. Will be written later so the scraping only happens once.
+            try:
+                new_html = ((urllib.request.urlopen(url)).read()).decode('utf-8')
+                Jmag = np.float64(new_html.split('Band')[1].split('J</td>\n<td>')[1].split(' <div class')[0])
+                row['Jmag']=Jmag#Update the table. Will be written later so the scraping only happens once.
+            except:
+                print('Error occured in scraping. Skipping this planet.')
             print('Jmag = %s'%Jmag)
         Teff = row['Teff']
         Rstar = row['Rstar']
@@ -276,8 +279,8 @@ def simulate_pandexo_TOI(JWST_mode,tablename='table_pandexo.p',table_outname='ta
 # simulate_pandexo('MIRI LRS')
 
 #And calling it again for the TOIs.
-simulate_pandexo_TOI('NIRSpec G140M',tablename='TOI_table.p',table_outname='TOI_table_pandexo.p')
-# simulate_pandexo_TOI('NIRSpec G235M',tablename='TOI_table_pandexo.p',table_outname='TOI_table_pandexo.p')
+# simulate_pandexo_TOI('NIRSpec G140M',tablename='TOI_table_pandexo.p',table_outname='TOI_table_pandexo.p')
+simulate_pandexo_TOI('NIRSpec G235M',tablename='TOI_table_pandexo.p',table_outname='TOI_table_pandexo.p')
 # simulate_pandexo_TOI('NIRSpec G395M',tablename='TOI_table_pandexo.p',table_outname='TOI_table_pandexo.p')
 # simulate_pandexo_TOI('NIRSpec Prism',tablename='TOI_table_pandexo.p',table_outname='TOI_table_pandexo.p')
 # simulate_pandexo_TOI('NIRISS SOSS',tablename='TOI_table_pandexo.p',table_outname='TOI_table_pandexo.p')
