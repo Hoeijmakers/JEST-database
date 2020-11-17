@@ -184,12 +184,13 @@ def simulate_pandexo(JWST_mode,tablename='table_pandexo.p',table_outname='table_
             print('      Jmag: %s, Teff: %s, Rstar: %s, Rp: %s, duration: %s, duration_approx: %s, log(g): %s, FeH: %s'%(Jmag,Teff,Rstar,Rp,dur,dur_approx,logg,FeH))
         else:#else, meaning if all values were accounted for, we try to run Pandexo and collect the output.
             if row['dur_approx_flag']==1.0:
+                print('      Jmag: %s, Teff: %s, Rstar: %s, Rp: %s, duration_approx: %s'%(Jmag,Teff,Rstar,Rp,dur_approx))
                 err,time = run_pandexo_on_planet(Jmag,Teff,Rstar,Rp,dur_approx,logg=4.5,FeH=0.0,JWST_mode=JWST_mode,planetname=row['pl_name'])
             else:
+                print('      Jmag: %s, Teff: %s, Rstar: %s, Rp: %s, duration: %s'%(Jmag,Teff,Rstar,Rp,dur))
                 err,time = run_pandexo_on_planet(Jmag,Teff,Rstar,Rp,dur,logg=4.5,FeH=0.0,JWST_mode=JWST_mode,planetname=row['pl_name'])
             row[JWST_mode+'_error']=err
             row[JWST_mode+'_time']=time
-        print('%s / %s'%(i,len(transiting)))
     with open(table_outname,"wb") as f:
         pickle.dump(transiting,f)
 
@@ -269,10 +270,10 @@ def simulate_pandexo_TOI(JWST_mode,tablename='table_pandexo.p',table_outname='ta
 
 
 #Calling all of the above:
-# simulate_pandexo('NIRSpec G140M',tablename='table.p')
+simulate_pandexo('NIRSpec G395M',tablename='table.p')#table.p is specified for the first mode. Output written to table_pandexo.p, which is used for the others by default.
 # simulate_pandexo('NIRSpec G235M')
-# simulate_pandexo('NIRSpec G395M')
 # simulate_pandexo('NIRSpec Prism')
+# simulate_pandexo('NIRSpec G140M')
 # simulate_pandexo('NIRISS SOSS')
 # simulate_pandexo('NIRCam F322W2')
 # simulate_pandexo('NIRCam F444W')
@@ -280,10 +281,10 @@ def simulate_pandexo_TOI(JWST_mode,tablename='table_pandexo.p',table_outname='ta
 
 #And calling it again for the TOIs.
 # simulate_pandexo_TOI('NIRSpec G140M',tablename='TOI_table_pandexo.p',table_outname='TOI_table_pandexo.p')
-simulate_pandexo_TOI('NIRSpec G235M',tablename='TOI_table_pandexo.p',table_outname='TOI_table_pandexo.p')
-simulate_pandexo_TOI('NIRSpec G395M',tablename='TOI_table_pandexo.p',table_outname='TOI_table_pandexo.p')
-simulate_pandexo_TOI('NIRSpec Prism',tablename='TOI_table_pandexo.p',table_outname='TOI_table_pandexo.p')
-simulate_pandexo_TOI('NIRISS SOSS',tablename='TOI_table_pandexo.p',table_outname='TOI_table_pandexo.p')
-simulate_pandexo_TOI('NIRCam F322W2',tablename='TOI_table_pandexo.p',table_outname='TOI_table_pandexo.p')
-simulate_pandexo_TOI('NIRCam F444W',tablename='TOI_table_pandexo.p',table_outname='TOI_table_pandexo.p')
-simulate_pandexo_TOI('MIRI LRS',tablename='TOI_table_pandexo.p',table_outname='TOI_table_pandexo.p')
+# simulate_pandexo_TOI('NIRSpec G235M',tablename='TOI_table_pandexo.p',table_outname='TOI_table_pandexo.p')
+# simulate_pandexo_TOI('NIRSpec G395M',tablename='TOI_table_pandexo.p',table_outname='TOI_table_pandexo.p')
+# simulate_pandexo_TOI('NIRSpec Prism',tablename='TOI_table_pandexo.p',table_outname='TOI_table_pandexo.p')
+# simulate_pandexo_TOI('NIRISS SOSS',tablename='TOI_table_pandexo.p',table_outname='TOI_table_pandexo.p')
+# simulate_pandexo_TOI('NIRCam F322W2',tablename='TOI_table_pandexo.p',table_outname='TOI_table_pandexo.p')
+# simulate_pandexo_TOI('NIRCam F444W',tablename='TOI_table_pandexo.p',table_outname='TOI_table_pandexo.p')
+# simulate_pandexo_TOI('MIRI LRS',tablename='TOI_table_pandexo.p',table_outname='TOI_table_pandexo.p')
